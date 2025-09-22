@@ -69,14 +69,18 @@ function iniciarJogoContraBot() {
         const { x, y } = bot.escolherAlvo();
         const celulaLogica = playerBoard[y][x];
         const resultado = atacar(playerBoard, x, y);
-        bot.registrarResultado(x, y, resultado);
-
+        
+        let navioAfundado = null;
         if (resultado === 'afundado') {
-             marcarComoAfundado(playerBoard, celulaLogica.navioInfo, playerBoardElement);
+            navioAfundado = celulaLogica.navioInfo;
+            marcarComoAfundado(playerBoard, navioAfundado, playerBoardElement);
         } else {
             const cellElement = playerBoardElement.querySelector(`[data-x='${x}'][data-y='${y}']`);
             atualizarCelulaVisual(cellElement, resultado);
         }
+
+        bot.registrarResultado(x, y, resultado, navioAfundado ? obterCoordenadasDoNavio(playerBoard, navioAfundado.id) : []);
+        
         verificarFimDeJogo(playerBoard, 'Bot');
 
         if (!jogoAcabou) {
@@ -172,10 +176,20 @@ function marcarComoAfundado(board, navioInfo, boardElement) {
             }
         }
     }
-    const counterIcon = document.getElementById(navioInfo.id);
-    if (counterIcon) {
-        counterIcon.classList.add('sunk');
-    }
+    
+    NAVIOS_CONFIG.forEach(config => {
+        for(let i = 0; i < config.quantidade; i++){
+            const navioId = `${navioInfo.id.split('-')[0]}-${config.nome}-${i}`;
+            if(navioInfo.id === navioId){
+                const counterIcon = document.querySelector(`#${navioInfo.id.split('-')[0]}-ship-counters #${navioId}`);
+                if (counterIcon && !counterIcon.classList.contains('sunk')) {
+                    counterIcon.classList.add('sunk');
+                    return; 
+                }
+            }
+        }
+    });
+
     atualizarInfoPanel(turnoDoPlayer, "Navio afundado!");
 }
 
@@ -204,6 +218,10 @@ function renderizarContadores(playerType) {
         const item = document.createElement('div');
         item.classList.add('ship-counter-item');
 
+        const label = document.createElement('span');
+        label.textContent = `${tipoNavio.nome.charAt(0).toUpperCase() + tipoNavio.nome.slice(1)}: `;
+        //item.appendChild(label);
+
         const iconsContainer = document.createElement('div');
         iconsContainer.classList.add('counter-ship-icons');
 
@@ -219,6 +237,7 @@ function renderizarContadores(playerType) {
     });
 }
 
+
 function atualizarInfoPanel(isPlayerTurn, mensagemExtra = "") {
     if (jogoAcabou) return;
     const titulo = document.getElementById('info-titulo');
@@ -233,64 +252,128 @@ function atualizarInfoPanel(isPlayerTurn, mensagemExtra = "") {
     }
 }
 
-function criarLogicaBot() {
-    let alvosPossiveis = [];
-    for(let y=0; y < TAMANHO_TABULEIRO; y++) {
-        for(let x=0; x < TAMANHO_TABULEIRO; x++) { alvosPossiveis.push({x, y}); }
-    }
-    
-    let modoCaca = 'aleatorio';
-    let primeiroAcerto = null, ultimoAcerto = null;
-
-    function escolherAlvo() {
-        if (modoCaca === 'procurar') {
-            const vizinhos = obterVizinhosValidos(ultimoAcerto);
-            if (vizinhos.length > 0) {
-                const alvo = vizinhos[0];
-                removerAlvoPossivel(alvo.x, alvo.y);
-                return alvo;
-            } else {
-                modoCaca = 'aleatorio';
-                ultimoAcerto = primeiroAcerto;
+function obterCoordenadasDoNavio(board, navioId) {
+    const coordenadas = [];
+    for (let y = 0; y < TAMANHO_TABULEIRO; y++) {
+        for (let x = 0; x < TAMANHO_TABULEIRO; x++) {
+            if (board[y][x].navioInfo && board[y][x].navioInfo.id === navioId) {
+                coordenadas.push({ x, y });
             }
         }
-        
-        const index = Math.floor(Math.random() * alvosPossiveis.length);
-        const alvo = alvosPossiveis[index];
-        if(alvo) alvosPossiveis.splice(index, 1);
-        return alvo || {x:0, y:0};
     }
+    return coordenadas;
+}
 
-    function removerAlvoPossivel(x, y) {
-        alvosPossiveis = alvosPossiveis.filter(p => p.x !== x || p.y !== y);
-    }
-    
-    function registrarResultado(x, y, resultado) {
-        removerAlvoPossivel(x, y);
-        if (resultado === 'acerto') {
-            modoCaca = 'procurar';
-            ultimoAcerto = {x, y};
-            if(!primeiroAcerto) primeiroAcerto = {x, y};
-        } else if (resultado === 'afundado') {
-            modoCaca = 'aleatorio';
-            primeiroAcerto = null;
-            ultimoAcerto = null;
-        } else if (resultado === 'erro' && modoCaca === 'procurar') {
-            ultimoAcerto = primeiroAcerto; 
+function criarLogicaBot() {
+    let alvosDisponiveis = [];
+    for (let y = 0; y < TAMANHO_TABULEIRO; y++) {
+        for (let x = 0; x < TAMANHO_TABULEIRO; x++) {
+            alvosDisponiveis.push({ x, y });
         }
     }
+
+    let acertosAtuais = []; // Fila de acertos que precisam ser investigados
+    let alvosPrioritarios = []; // Alvos adjacentes a um acerto
+
+    const removerAlvoDisponivel = (x, y) => {
+        alvosDisponiveis = alvosDisponiveis.filter(p => p.x !== x || p.y !== y);
+    };
+
+    const alvoJaAtacado = (x, y) => {
+        return !alvosDisponiveis.some(p => p.x === x && p.y === y);
+    };
+
+    function escolherAlvo() {
+        // 1. Se houver alvos prioritários (adjacentes a um acerto), ataque-os primeiro
+        if (alvosPrioritarios.length > 0) {
+            const alvo = alvosPrioritarios.pop();
+            removerAlvoDisponivel(alvo.x, alvo.y);
+            return alvo;
+        }
+
+        // 2. Se não, mas houver acertos não resolvidos, crie alvos prioritários a partir deles
+        if (acertosAtuais.length > 0) {
+            gerarAlvosPrioritarios();
+            // Tenta novamente, agora com alvos prioritários
+            if (alvosPrioritarios.length > 0) {
+                const alvo = alvosPrioritarios.pop();
+                removerAlvoDisponivel(alvo.x, alvo.y);
+                return alvo;
+            }
+        }
+
+        // 3. Se não houver acertos, ataque aleatoriamente (Modo Caça)
+        const index = Math.floor(Math.random() * alvosDisponiveis.length);
+        const alvo = alvosDisponiveis[index];
+        if(alvo) {
+            alvosDisponiveis.splice(index, 1);
+            return alvo;
+        }
+        return {x:0, y:0}; // Fallback
+    }
+
+    function registrarResultado(x, y, resultado, coordenadasNavioAfundado) {
+        if (resultado === 'acerto') {
+            acertosAtuais.push({ x, y });
+            // Se agora temos dois acertos, podemos inferir a direção
+            if (acertosAtuais.length >= 2) {
+                const primeiro = acertosAtuais[0];
+                const ultimo = acertosAtuais[acertosAtuais.length - 1];
+                let direcao;
+                if(primeiro.x === ultimo.x) direcao = 'vertical';
+                if(primeiro.y === ultimo.y) direcao = 'horizontal';
+
+                // Limpa os alvos antigos e foca na linha do navio
+                alvosPrioritarios = []; 
+                if(direcao){
+                    acertosAtuais.forEach(acerto => {
+                        if (direcao === 'horizontal') {
+                            adicionarAlvoPrioritario(acerto.x + 1, acerto.y);
+                            adicionarAlvoPrioritario(acerto.x - 1, acerto.y);
+                        } else { // vertical
+                            adicionarAlvoPrioritario(acerto.x, acerto.y + 1);
+                            adicionarAlvoPrioritario(acerto.x, acerto.y - 1);
+                        }
+                    });
+                }
+            } else {
+                 // Primeiro acerto, adicione todos os vizinhos
+                gerarAlvosPrioritarios();
+            }
+        } else if (resultado === 'afundado') {
+             // Remove todas as células do navio afundado da lista de acertos
+            acertosAtuais = acertosAtuais.filter(acerto => 
+                !coordenadasNavioAfundado.some(coord => coord.x === acerto.x && coord.y === acerto.y)
+            );
+            // Remove o acerto atual também
+            acertosAtuais = acertosAtuais.filter(acerto => acerto.x !== x || acerto.y !== y);
+
+            alvosPrioritarios = []; // Limpa os alvos prioritários
+        }
+        // Se for 'erro', a lógica de 'escolherAlvo' naturalmente tentará outro alvo prioritário ou voltará para a caça.
+    }
     
-    function obterVizinhosValidos({x, y}) {
-        const vizinhos = [];
-        if(y > 0) vizinhos.push({x, y: y - 1});
-        if(x < TAMANHO_TABULEIRO - 1) vizinhos.push({x: x + 1, y});
-        if(y < TAMANHO_TABULEIRO - 1) vizinhos.push({x, y: y + 1});
-        if(x > 0) vizinhos.push({x: x - 1, y});
-        return vizinhos.filter(v => alvosPossiveis.some(p => p.x === v.x && p.y === v.y));
+    function adicionarAlvoPrioritario(x, y) {
+        if (x >= 0 && x < TAMANHO_TABULEIRO && y >= 0 && y < TAMANHO_TABULEIRO &&
+            !alvoJaAtacado(x, y) && !alvosPrioritarios.some(p => p.x === x && p.y === y)) {
+            alvosPrioritarios.push({ x, y });
+        }
+    }
+
+    function gerarAlvosPrioritarios() {
+        if (acertosAtuais.length > 0) {
+            // Foca no último acerto para tentar seguir uma linha
+            const ultimoAcerto = acertosAtuais[acertosAtuais.length - 1];
+            adicionarAlvoPrioritario(ultimoAcerto.x + 1, ultimoAcerto.y);
+            adicionarAlvoPrioritario(ultimoAcerto.x - 1, ultimoAcerto.y);
+            adicionarAlvoPrioritario(ultimoAcerto.x, ultimoAcerto.y + 1);
+            adicionarAlvoPrioritario(ultimoAcerto.x, ultimoAcerto.y - 1);
+        }
     }
 
     return { escolherAlvo, registrarResultado };
 }
+
 
 function mostrarTelaDeEspera() {
     const waitingScreen = document.getElementById('waiting-screen');
