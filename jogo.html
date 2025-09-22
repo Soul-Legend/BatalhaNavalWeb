@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batalha Naval - Em Jogo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1>Batalha Naval</h1>
+        <nav>
+            <a href="index.html">Voltar para o Menu</a>
+        </nav>
+    </header>
+
+    <div class="game-container">
+        <div class="info-panel">
+            <h2 id="info-titulo">Seu Turno</h2>
+            <p id="info-mensagem">Clique no tabuleiro do oponente para atacar.</p>
+        </div>
+        
+        <div class="boards-container">
+            <div class="board-wrapper">
+                <h3>Seu Tabuleiro</h3>
+                <div id="player-board" class="board"></div>
+                <div id="player-ship-counters" class="ship-counters-container"></div>
+            </div>
+            <div class="board-wrapper">
+                <h3>Tabuleiro do Oponente</h3>
+                <div id="opponent-board" class="board"></div>
+                <div id="opponent-ship-counters" class="ship-counters-container"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="waiting-screen" class="waiting-overlay" style="display: none;">
+        <div class="waiting-box">
+            <h2>Esperando por outro jogador...</h2>
+            <p>Tempo de espera: <span id="timer">0</span>s</p>
+            <div class="loader"></div>
+            <button id="cancel-matchmaking" class="menu-button">Cancelar</button>
+        </div>
+    </div>
+
+    <footer>
+        <div class="ship-legend">
+            <div class="legend-item">
+                <p>Porta-Aviões:</p>
+                <div class="legend-squares">
+                    <div class="legend-square ship-porta-avioes"></div>
+                    <div class="legend-square ship-porta-avioes"></div>
+                    <div class="legend-square ship-porta-avioes"></div>
+                    <div class="legend-square ship-porta-avioes"></div>
+                    <div class="legend-square ship-porta-avioes"></div>
+                </div>
+            </div>
+            <div class="legend-item">
+                <p>Navio-Tanque:</p>
+                <div class="legend-squares">
+                    <div class="legend-square ship-navio-tanque"></div>
+                    <div class="legend-square ship-navio-tanque"></div>
+                    <div class="legend-square ship-navio-tanque"></div>
+                    <div class="legend-square ship-navio-tanque"></div>
+                </div>
+            </div>
+            <div class="legend-item">
+                <p>Contratorpedeiro:</p>
+                <div class="legend-squares">
+                    <div class="legend-square ship-contratorpedeiro"></div>
+                    <div class="legend-square ship-contratorpedeiro"></div>
+                    <div class="legend-square ship-contratorpedeiro"></div>
+                </div>
+            </div>
+            <div class="legend-item">
+                <p>Submarino:</p>
+                <div class="legend-squares">
+                    <div class="legend-square ship-submarino"></div>
+                    <div class="legend-square ship-submarino"></div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
